@@ -1,0 +1,2 @@
+[console_scripts]
+avif-converter = main:main

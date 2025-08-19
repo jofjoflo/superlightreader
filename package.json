@@ -1,0 +1,27 @@
+{
+  "name": "avif-cbz-reader",
+  "version": "1.0.0",
+  "description": "AVIF-CBZ Converter + Web Comic Reader",
+  "workspaces": [
+    "apps/reader"
+  ],
+  "scripts": {
+    "dev:reader": "cd apps/reader && pnpm run dev",
+    "build:reader": "cd apps/reader && pnpm run build",
+    "test:converter": "cd apps/tools/converter && python -m unittest test_converter.py -v",
+    "demo:converter": "cd apps/tools/converter && python demo.py",
+    "install:converter": "cd apps/tools/converter && pip install -r requirements.txt",
+    "install:reader": "cd apps/reader && pnpm install"
+  },
+  "keywords": [
+    "avif",
+    "cbz", 
+    "comic",
+    "reader",
+    "converter",
+    "sveltekit",
+    "typescript"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

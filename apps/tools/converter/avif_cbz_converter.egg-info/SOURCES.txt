@@ -1,0 +1,9 @@
+README.md
+main.py
+setup.py
+avif_cbz_converter.egg-info/PKG-INFO
+avif_cbz_converter.egg-info/SOURCES.txt
+avif_cbz_converter.egg-info/dependency_links.txt
+avif_cbz_converter.egg-info/entry_points.txt
+avif_cbz_converter.egg-info/requires.txt
+avif_cbz_converter.egg-info/top_level.txt
