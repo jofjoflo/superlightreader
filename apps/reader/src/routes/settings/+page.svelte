@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { library } from '$lib/library.svelte';
 	import type { LibraryBackup } from '$lib/backup';
 	import { toast } from '$lib/toast.svelte';
@@ -11,6 +12,7 @@
 	import ProgressBar from '$lib/components/ProgressBar.svelte';
 	import SettingRow from '$lib/components/SettingRow.svelte';
 	import Sheet from '$lib/components/Sheet.svelte';
+	import { clearMetronToken, isMetronNative, metronTokenStatus, setMetronToken } from '$lib/metadata/metron';
 
 	type Choice = { value: string | number; label: string };
 
@@ -86,8 +88,50 @@
 	const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 	let convertQuality = $state(40);
 	let convertWidth = $state(1400);
+	const nativeMetron = isMetronNative();
+	let metronToken = $state('');
+	let metronStatus = $state<'loading' | 'configured' | 'missing' | 'unavailable'>(nativeMetron ? 'loading' : 'unavailable');
+	let metronBusy = $state(false);
+	let metronMessage = $state('');
 	const conversion = $derived(library.convert);
 	const standalone = typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches;
+
+	onMount(() => {
+		if (nativeMetron) void refreshMetronStatus();
+	});
+	async function refreshMetronStatus() {
+		metronStatus = 'loading';
+		metronMessage = '';
+		const status = await metronTokenStatus();
+		metronStatus = status;
+		if (status === 'unavailable') metronMessage = 'Android-integrationen kunde inte laddas. Uppdatera appen och försök igen.';
+	}
+	async function saveMetronToken() {
+		if (metronBusy) return;
+		metronBusy = true;
+		metronMessage = '';
+		try {
+			await setMetronToken(metronToken);
+			metronToken = '';
+			metronStatus = 'configured';
+			toast.show('Metron-token sparad säkert på enheten.', { kind: 'ok' });
+		} catch (e) {
+			metronMessage = e instanceof Error ? e.message : 'Metron-token kunde inte sparas.';
+		} finally { metronBusy = false; }
+	}
+	async function removeMetronToken() {
+		if (metronBusy) return;
+		metronBusy = true;
+		metronMessage = '';
+		try {
+			await clearMetronToken();
+			metronStatus = 'missing';
+			metronToken = '';
+			toast.show('Metron-token togs bort från enheten.', { kind: 'ok' });
+		} catch (e) {
+			metronMessage = e instanceof Error ? e.message : 'Metron-token kunde inte tas bort.';
+		} finally { metronBusy = false; }
+	}
 
 	async function downloadBackupFile() {
 		try {
@@ -447,6 +491,51 @@
 		</div>
 	</section>
 
+	<!-- ───────── Metron ───────── -->
+	<section class="card group" aria-labelledby="g-metron">
+		{@render groupHead('link', 'g-metron', 'Metron')}
+		{#if nativeMetron}
+			<SettingRow
+				label="API-token"
+				help="Tokenen lagras endast i Androids säkra app-lagring. Den visas inte i backup, loggar eller webb-bundle."
+				stack
+			>
+				<div class="metron-token">
+					<div class="metron-token-row">
+						<input
+							type="password"
+							bind:value={metronToken}
+							placeholder="Klistra in Metron-token"
+							autocomplete="off"
+							spellcheck="false"
+							maxlength="512"
+							aria-label="Metron API-token"
+							disabled={metronBusy}
+						/>
+						<button type="button" class="btn btn-primary" disabled={metronBusy || !metronToken.trim()} onclick={saveMetronToken}>
+							{metronBusy ? 'Sparar…' : 'Spara token'}
+						</button>
+					</div>
+					{#if metronStatus === 'loading'}<span class="muted" role="status">Kontrollerar tokenstatus…</span>
+					{:else if metronStatus === 'configured'}<span class="pill ok" role="status"><Icon name="check" size={16} />Token konfigurerad</span>
+					{:else if metronStatus === 'missing'}<span class="pill warn" role="status">Ingen token konfigurerad</span>
+					{:else}<span class="error" role="alert">{metronMessage}</span>{/if}
+				</div>
+			</SettingRow>
+			<SettingRow label="Ta bort token" help="Tar bort den lokalt lagrade tokenen. Befintliga Metron-matchningar i biblioteket påverkas inte.">
+				<button type="button" class="btn danger-outline" disabled={metronBusy || metronStatus !== 'configured'} onclick={removeMetronToken}>
+					<Icon name="trash" size={18} />Ta bort token
+				</button>
+			</SettingRow>
+			{#if metronMessage && metronStatus !== 'unavailable'}<p class="metron-error" role="alert">{metronMessage}</p>{/if}
+		{:else}
+			<div class="note" role="note">
+				<Icon name="info" size={18} />
+				<p>Webbversionen använder lokalhost-proxyn. Ange token i proxyns servermiljö; användarhemligheter lagras inte i webbläsaren.</p>
+			</div>
+		{/if}
+	</section>
+
 	<!-- ───────── Läsaren ───────── -->
 	<section class="card group" aria-labelledby="g-reader">
 		{@render groupHead('book', 'g-reader', 'Läsaren')}
@@ -693,6 +782,12 @@
 		margin-top: 1px;
 		color: var(--accent-2);
 	}
+	.metron-token { display:grid; gap:10px; width:min(100%, 620px); }
+	.metron-token-row { display:flex; flex-wrap:wrap; gap:8px; }
+	.metron-token-row input { flex:1 1 260px; min-width:0; min-height:44px; padding:0 12px; border:1px solid var(--border-strong); border-radius:var(--radius-s); background:var(--bg-raised); }
+	.metron-token-row input::placeholder { color:var(--text-faint); }
+	.metron-error, .error { color:var(--danger); font-size:.9rem; }
+	.metron-error { margin:0 18px 14px; }
 	.backup-option { display:flex; align-items:center; gap:10px; min-height:44px; margin-top:14px; color:var(--text-dim); }
 	.backup-option input { width:19px; height:19px; accent-color:var(--accent); }
 	.convert-number { display:flex; align-items:center; gap:8px; color:var(--text-dim); }

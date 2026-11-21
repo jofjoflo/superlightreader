@@ -8,6 +8,7 @@
 import type { Issue, MetronAttribution, MetronIssue } from '../types.ts';
 import { fetchJson } from './net.ts';
 import { Capacitor } from '@capacitor/core';
+import { MetronNative, parseNativeMetronResponse } from './metron-native.ts';
 
 const PROXY = '/api/metron';
 const MAX_RESULTS = 100;
@@ -54,9 +55,55 @@ export type MetronSearchResults = MetronIssueCandidate[] & { hasMore?: boolean }
 type JsonObject = Record<string, unknown>;
 
 export class MetronUnavailableError extends Error {
-	constructor(message = 'Metron kräver en säker serveranslutning i Android-appen. Ange VITE_METRON_PROXY_URL eller använd webbversionen.') {
+	constructor(message = 'Metron är inte konfigurerat. Ange en token i Inställningar och försök igen.') {
 		super(message);
 		this.name = 'MetronUnavailableError';
+	}
+}
+
+export type MetronTokenStatus = 'configured' | 'missing' | 'unavailable';
+
+const nativeFailure = (error: unknown): MetronUnavailableError | Error => {
+	if (error instanceof MetronUnavailableError) return error;
+	const code = String((error as { code?: unknown } | null)?.code ?? '');
+	if (code === 'INVALID_TOKEN') return new Error('Metron-token saknas eller har ogiltigt format.');
+	if (code === 'TOKEN_STORAGE_FAILED') return new Error('Metron-token kunde inte sparas eller läsas.');
+	if (code === 'TOKEN_MISSING') return new MetronUnavailableError();
+	if (code === 'METRON_HTTP_ERROR') return new Error('Metron svarade med ett fel. Kontrollera token och försök igen.');
+	return new MetronUnavailableError('Metron kunde inte nås i Android-appen. Kontrollera token och anslutning.');
+};
+
+export function isMetronNative(): boolean {
+	return Capacitor.isNativePlatform();
+}
+
+export async function metronTokenStatus(): Promise<MetronTokenStatus> {
+	if (!isMetronNative()) return 'unavailable';
+	try {
+		const result = await MetronNative.hasToken();
+		return result?.configured ? 'configured' : 'missing';
+	} catch {
+		return 'unavailable';
+	}
+}
+
+export async function setMetronToken(token: string): Promise<void> {
+	if (!isMetronNative()) throw new MetronUnavailableError('Metron-token kan bara anges i Android-appen.');
+	const value = token.trim();
+	if (!value) throw new Error('Ange en Metron-token.');
+	try {
+		await MetronNative.setToken({ token: value });
+	} catch (error) {
+		throw nativeFailure(error);
+	}
+}
+
+export async function clearMetronToken(): Promise<void> {
+	if (!isMetronNative()) return;
+	try {
+		await MetronNative.clearToken();
+	} catch (error) {
+		throw nativeFailure(error);
 	}
 }
 
@@ -242,10 +289,21 @@ function queryOf(input: MetronQuery | Issue): NormalizedMetronQuery {
 export async function searchMetronIssues(input: MetronQuery | Issue, signal?: AbortSignal, page = 1): Promise<MetronSearchResults> {
 	const query = queryOf(input);
 	if (!query.seriesName.trim() || signal?.aborted) return [];
-	const params = new URLSearchParams({ action: 'search', q: query.seriesName.trim(), page: String(Math.max(1, Math.min(100, Math.trunc(page) || 1))) });
+	const pageNumber = Math.max(1, Math.min(100, Math.trunc(page) || 1));
 	const number = issueNumberKey(query.number);
-	if (number !== undefined) params.set('number', number);
-	const response = await fetchJson(proxyUrl(params), {}, signal);
+	let response: unknown;
+	if (isMetronNative()) {
+		try {
+			const nativeResponse = await MetronNative.search({ q: query.seriesName.trim(), number, page: pageNumber });
+			response = parseNativeMetronResponse(nativeResponse);
+		} catch (error) {
+			throw nativeFailure(error);
+		}
+	} else {
+		const params = new URLSearchParams({ action: 'search', q: query.seriesName.trim(), page: String(pageNumber) });
+		if (number !== undefined) params.set('number', number);
+		response = await fetchJson(proxyUrl(params), {}, signal);
+	}
 	const parsed = responseResults(response);
 	const out = parsed.rows
 		.map((raw) => candidateOf(raw, query))
@@ -296,8 +354,18 @@ function detailsOf(rawValue: unknown, candidate?: MetronIssueCandidate): MetronI
 export async function fetchMetronIssue(id: number | string, signal?: AbortSignal, candidate?: MetronIssueCandidate): Promise<MetronIssue> {
 	const parsed = integer(id);
 	if (parsed === undefined || parsed < 1) throw new Error('Metron issue id must be a positive integer');
-	const params = new URLSearchParams({ action: 'detail', id: String(parsed) });
-	const response = await fetchJson(proxyUrl(params), {}, signal);
+	let response: unknown;
+	if (isMetronNative()) {
+		try {
+			const nativeResponse = await MetronNative.detail({ id: parsed });
+			response = parseNativeMetronResponse(nativeResponse);
+		} catch (error) {
+			throw nativeFailure(error);
+		}
+	} else {
+		const params = new URLSearchParams({ action: 'detail', id: String(parsed) });
+		response = await fetchJson(proxyUrl(params), {}, signal);
+	}
 	return detailsOf(response, candidate);
 }
 

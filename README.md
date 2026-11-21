@@ -57,7 +57,7 @@ pnpm run android:build
 
 På GitHub Actions kör du **Android debug APK → Run workflow**. Push till branchen `codex/android-reader` kör samma jobb automatiskt. Ladda ned `superlight-reader-debug-*` under workflow-runens **Artifacts**.
 
-APK:n är en statisk/offline WebView-app. Metron-sökning är inte tillgänglig i APK:n eftersom `/api/metron` är en server-route och ingen Metron-nyckel paketeras. Import, filåtkomst och lokal lagring är ännu inte fysiskt testade på Android-enhet.
+APK:n använder samma bibliotek och läsare som webbappen. För Metron på Android anger du din egen token under **Inställningar → Metron**; den lagras krypterad i appens privata lagring och paketeras inte i APK-filen eller backupen. Metron kräver internetanslutning. Import, filåtkomst, Metron och lokal lagring är ännu inte fysiskt testade på Android-enhet.
 
 ## Metron och flyttbar säkerhetskopia
 

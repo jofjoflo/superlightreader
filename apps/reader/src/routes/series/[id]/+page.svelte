@@ -471,7 +471,7 @@
 							>
 								<span><Icon name="check" size={16} /></span>
 							</button>
-							<button type="button" class="qa metron-btn" aria-label={`Sök Metron-match för ${issueName(issue)}`} title="Sök Metron-match" onclick={() => openMetron(issue)}><Icon name="search" size={15} /></button>
+							<button type="button" class="btn btn-ghost metron-action" aria-label={`Sök Metron-match för ${issueName(issue)}`} onclick={() => openMetron(issue)}><Icon name="search" size={15} /> {issue.metron ? 'Ändra Metron-match' : 'Hämta Metron-data'}</button>
 							{#if issue.unsupported}
 								<p class="why"><Icon name="cloud-off" size={14} />{issueNum(issue) ? `${issueNum(issue)} · ` : ''}{unsupportedText(issue)}</p>
 							{/if}
@@ -948,6 +948,7 @@
 		opacity: 0.45;
 		filter: grayscale(0.7);
 	}
+	.metron-action { margin-top: 6px; min-height: 40px; font-size: 0.8rem; }
 	.issue-characters {
 		margin: 8px 0 0;
 		color: var(--text-dim);
