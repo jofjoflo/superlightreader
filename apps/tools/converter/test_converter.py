@@ -96,7 +96,7 @@ class TestAVIFConverter(unittest.TestCase):
         
         # Create CBZ
         create_cbz(
-            src_dir=self.test_path,
+            src=self.test_path,
             dst_path=output_cbz,
             quality=50
         )
@@ -138,7 +138,7 @@ class TestAVIFConverter(unittest.TestCase):
         
         # Create CBZ with size constraints
         create_cbz(
-            src_dir=self.test_path,
+            src=self.test_path,
             dst_path=output_cbz,
             quality=50,
             max_width=50,
@@ -169,7 +169,7 @@ class TestAVIFConverter(unittest.TestCase):
         # Should raise ValueError for empty directory
         with self.assertRaises(ValueError):
             create_cbz(
-                src_dir=empty_dir,
+                src=empty_dir,
                 dst_path=output_cbz,
                 quality=50
             )
@@ -182,7 +182,7 @@ class TestAVIFConverter(unittest.TestCase):
         # Should raise ValueError for non-existent directory
         with self.assertRaises(ValueError):
             create_cbz(
-                src_dir=fake_dir,
+                src=fake_dir,
                 dst_path=output_cbz,
                 quality=50
             )

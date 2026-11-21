@@ -32,3 +32,8 @@ apps/tools/converter/comics/xmen/X-Men 020 (2025) - 0024.jpg
 apps/tools/converter/comics/xmen/X-Men 020 (2025) - 0025.jpg
 apps/tools/converter/comics/xmen/X-Men 020 (2025) - 0026.jpg
 apps/tools/converter/comics/xmen/X-Men 020 (2025) - 0027.jpg
+
+# Local credentials
+.env
+.env.*
+!.env.example

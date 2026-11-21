@@ -1,0 +1,51 @@
+{
+ "kind": "books#volumes",
+ "totalItems": 4,
+ "_note": "hand-trimmed in the shape of the API: keyless Google Books answered HTTP 429 when the other fixtures were recorded",
+ "items": [
+  {
+   "id": "gb-owls",
+   "volumeInfo": {
+    "title": "Batman, Vol. 1",
+    "subtitle": "The Court of Owls",
+    "authors": ["Scott Snyder", "Greg Capullo"],
+    "publisher": "DC Comics",
+    "publishedDate": "2012-05-08",
+    "description": "<p>The <b>Court of Owls</b> has ruled Gotham from the shadows.</p><br>(Source: publisher)",
+    "categories": ["Comics & Graphic Novels"],
+    "infoLink": "https://books.google.com/books?id=gb-owls"
+   }
+  },
+  {
+   "id": "gb-city",
+   "volumeInfo": {
+    "title": "Batman Vol. 2",
+    "authors": ["Scott Snyder"],
+    "publisher": "DC Comics",
+    "publishedDate": "2013-04-02",
+    "categories": ["Comics & Graphic Novels"],
+    "infoLink": "https://books.google.com/books?id=gb-city"
+   }
+  },
+  {
+   "id": "gb-novel",
+   "volumeInfo": {
+    "title": "Batman",
+    "authors": ["Some Novelist"],
+    "publisher": "Penguin",
+    "publishedDate": "1989",
+    "categories": ["Fiction"]
+   }
+  },
+  {
+   "id": "gb-year-one",
+   "volumeInfo": {
+    "title": "Batman: Year One",
+    "authors": ["Frank Miller"],
+    "publisher": "DC Comics",
+    "publishedDate": "1987",
+    "categories": ["Comics & Graphic Novels"]
+   }
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "Saga – föreslagen ordning",
+  "description": "Läs huvudserien före spin-off-materialet.",
+  "year": 2024,
+  "characters": ["Alana", "Marko"],
+  "sourceUrl": "https://example.org/reading-order",
+  "items": [
+    { "series": "Saga", "issue": 1, "story": "Chapter One", "essential": true },
+    { "series": "Saga", "issue": 2, "note": "Fortsätt direkt", "essential": true }
+  ]
+}

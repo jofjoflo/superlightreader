@@ -1,49 +1,40 @@
 import { get, set } from 'idb-keyval';
+import type { Settings } from './types.ts';
 
-export interface ReaderSettings {
-	pageZoom: number;
-	fitMode: 'width' | 'height' | 'both' | 'none';
-	doublePageMode: boolean;
-	backgroundColor: string;
-	maxPrefetchPages: number;
-}
-
-const defaultSettings: ReaderSettings = {
-	pageZoom: 1.0,
-	fitMode: 'width',
-	doublePageMode: false,
-	backgroundColor: '#1a1a1a',
-	maxPrefetchPages: 3
+export const defaultSettings: Settings = {
+	persistFiles: true,
+	autoMetadata: true,
+	cardSize: 170,
+	reader: {
+		fit: 'screen',
+		spread: 'auto',
+		direction: 'auto',
+		background: '#000000',
+		tapZones: true,
+		keepAwake: true,
+		preload: 2
+	}
 };
 
-/**
- * Load reader settings from storage
- */
-export async function loadSettings(): Promise<ReaderSettings> {
+const KEY = 'slr-settings';
+
+export async function loadSettings(): Promise<Settings> {
 	try {
-		const stored = await get('reader-settings');
-		return { ...defaultSettings, ...stored };
-	} catch (error) {
-		console.warn('Failed to load settings, using defaults:', error);
-		return defaultSettings;
+		const s = (await get(KEY)) as Partial<Settings> | undefined;
+		return { ...defaultSettings, ...s, reader: { ...defaultSettings.reader, ...s?.reader } };
+	} catch {
+		return structuredClone(defaultSettings);
 	}
 }
 
-/**
- * Save reader settings to storage
- */
-export async function saveSettings(settings: ReaderSettings): Promise<void> {
+export async function saveSettings(s: Settings): Promise<void> {
 	try {
-		await set('reader-settings', settings);
-	} catch (error) {
-		console.warn('Failed to save settings:', error);
+		await saveSettingsStrict(s);
+	} catch (e) {
+		console.warn('saveSettings failed', e);
 	}
 }
 
-/**
- * Reset settings to defaults
- */
-export async function resetSettings(): Promise<ReaderSettings> {
-	await saveSettings(defaultSettings);
-	return defaultSettings;
+export async function saveSettingsStrict(s: Settings): Promise<void> {
+	await set(KEY, JSON.parse(JSON.stringify(s))); // strips Svelte proxies
 }

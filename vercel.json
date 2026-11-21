@@ -1,0 +1,6 @@
+{
+  "installCommand": "pnpm --dir apps/reader install --frozen-lockfile",
+  "buildCommand": "pnpm --dir apps/reader build",
+  "outputDirectory": "apps/reader/build",
+  "rewrites": [{ "source": "/((?!api/metron(?:/|$)|_app/|.*\\..*).*)", "destination": "/index.html" }]
+}

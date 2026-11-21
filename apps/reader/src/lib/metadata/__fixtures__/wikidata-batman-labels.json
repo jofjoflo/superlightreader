@@ -1,0 +1,159 @@
+{
+ "entities": {
+  "Q14406742": {
+   "type": "item",
+   "id": "Q14406742",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "comic book series"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "serie av serieberättelser"
+    }
+   }
+  },
+  "Q1114461": {
+   "type": "item",
+   "id": "Q1114461",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "comics character"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "seriefigur"
+    }
+   }
+  },
+  "Q15632617": {
+   "type": "item",
+   "id": "Q15632617",
+   "labels": {
+    "sv": {
+     "language": "sv",
+     "value": "fiktiv människa"
+    },
+    "en": {
+     "language": "en",
+     "value": "fictional human"
+    }
+   }
+  },
+  "Q15773347": {
+   "type": "item",
+   "id": "Q15773347",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "film character"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "filmfigur"
+    }
+   }
+  },
+  "Q15773317": {
+   "type": "item",
+   "id": "Q15773317",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "television character"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "TV-rollfigur"
+    }
+   }
+  },
+  "Q2924461": {
+   "type": "item",
+   "id": "Q2924461",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "DC Comics"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "DC Comics"
+    }
+   }
+  },
+  "Q7643429": {
+   "type": "item",
+   "id": "Q7643429",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "superhero comics"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "superhjälteserie"
+    }
+   }
+  },
+  "Q20087918": {
+   "type": "item",
+   "id": "Q20087918",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "action comics"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "actionserie"
+    }
+   }
+  },
+  "Q464282": {
+   "type": "item",
+   "id": "Q464282",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Bill Finger"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "Bill Finger"
+    }
+   }
+  },
+  "Q23664009": {
+   "type": "item",
+   "id": "Q23664009",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Tom King"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "Tom King"
+    }
+   }
+  },
+  "Q313048": {
+   "type": "item",
+   "id": "Q313048",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Bob Kane"
+    },
+    "sv": {
+     "language": "sv",
+     "value": "Bob Kane"
+    }
+   }
+  }
+ },
+ "success": 1
+}

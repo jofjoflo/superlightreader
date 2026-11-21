@@ -41,14 +41,25 @@ avif-converter \
 avif-converter --src ./pages --dst ./high_quality.cbz --lossless
 ```
 
+### Batch: a whole folder of CBZ/CBR files
+
+```bash
+python -m apps.tools.converter --batch ~/Downloads/Serier
+```
+
+Every `.cbz`/`.cbr` directly in the folder is converted (subfolders are not searched), four at a time (`--jobs` to change). AVIF versions go to `avif/`, the originals are moved to `notavif/` after a verified conversion. Files whose output already exists are skipped. Batch defaults to `--max-width 1400` (`0` keeps the original size). Details: [docs/konvertera-idag.md](../../../docs/konvertera-idag.md).
+
 ## Options
 
-- `--src` (required): Source directory containing images OR existing CBZ file
+- `--src` (required): Source directory containing images OR existing CBZ/CBR file
 - `--dst` (required): Output CBZ file path  
+- `--batch MAPP`: Convert every CBZ/CBR directly in MAPP (replaces `--src`/`--dst`)
+- `--jobs`: Batch: files converted at the same time (default: 4)
 - `--quality`: AVIF quality (1-100, default: 40)
 - `--max-width`: Maximum width for resizing (preserves aspect ratio)
 - `--max-height`: Maximum height for resizing (preserves aspect ratio)
 - `--lossless`: Use lossless AVIF encoding (ignores --quality)
+- `--check-cbr`: Check whether CBR (RAR) support is available
 
 ## Supported Input Formats
 
@@ -93,10 +104,10 @@ python create_test_cbz.py  # Creates test_jpg_comic.cbz
 avif-converter --src test_jpg_comic.cbz --dst test_avif.cbz
 ```
 
-Run unit tests:
+Run unit tests (from this folder):
 
 ```bash
-python -m unittest test_converter.py
+python -m unittest test_converter test_batch -v
 ```
 
 ## Requirements

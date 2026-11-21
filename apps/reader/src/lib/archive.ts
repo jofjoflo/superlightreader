@@ -1,49 +1,67 @@
-import { unzipSync } from 'fflate';
+import { mimeFor } from './mime.ts';
+import type { ArchivePage, ComicArchive } from './types.ts';
+import { naturalCompare } from './util.ts';
+import { openZip } from './zip.ts';
+import type { ZipEntry, ZipFile } from './zip.ts';
 
-export interface ComicPage {
-	name: string;
-	data: Uint8Array;
+/** true for .cbz .zip .cbr .rar (case-insensitive) */
+export function isComicFileName(name: string): boolean {
+	return /\.(cbz|zip|cbr|rar)$/i.test(name);
 }
 
+const IMAGE = /\.(avif|webp|jpe?g|png|gif|bmp)$/i;
+const basename = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+
+/** Image entries, minus macOS resource forks (Thumbs.db and the like are not images anyway). */
+const isPage = (e: ZipEntry) =>
+	!e.isDir && IMAGE.test(e.name) && !/(^|\/)__MACOSX\//.test(e.name) && !basename(e.name).startsWith('._');
+
 /**
- * Read and extract pages from a CBZ or CBR file
+ * Open a comic archive with random access (never inflate the whole file).
+ * Sniffs magic bytes (PK.. → zip, Rar! → rar) rather than trusting the extension (.cbr is often a zip).
  */
-export async function readCbz(file: File): Promise<ComicPage[]> {
-	const fileName = file.name.toLowerCase();
-	
-	if (fileName.endsWith('.cbr')) {
-		throw new Error('CBR files are not supported in the web reader. Please convert to CBZ format first using the converter tool.');
+export async function openArchive(file: Blob & { name?: string }): Promise<ComicArchive> {
+	const magic = String.fromCharCode(...new Uint8Array(await file.slice(0, 4).arrayBuffer()));
+	if (magic === 'PK\x03\x04' || magic === 'PK\x05\x06') return openZipArchive(file);
+	if (magic === 'Rar!') {
+		const { openRar } = await import('./rar.ts');
+		return openRar(file);
 	}
-	
-	if (!fileName.endsWith('.cbz')) {
-		throw new Error('Only CBZ files are supported in the web reader.');
-	}
-	
-	const buffer = new Uint8Array(await file.arrayBuffer());
-	const entries = unzipSync(buffer);
-
-	const pages = Object.keys(entries)
-		.filter((name) => /\.(avif|webp|jpe?g|png|bmp)$/i.test(name))
-		.sort(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare)
-		.map((name) => ({
-			name,
-			data: entries[name]
-		}));
-
-	return pages;
+	throw new Error('Okänt arkivformat');
 }
 
-/**
- * Create a blob URL for a page
- */
-export function createPageUrl(page: ComicPage, mimeType: string): string {
-	const blob = new Blob([page.data], { type: mimeType });
-	return URL.createObjectURL(blob);
-}
+async function openZipArchive(file: Blob): Promise<ComicArchive> {
+	let zip: ZipFile | undefined = await openZip(file);
+	const sorted = zip.entries.filter(isPage).sort((a, b) => naturalCompare(a.name, b.name));
+	const pages: ArchivePage[] = sorted.map((e, index) => ({
+		index,
+		name: e.name,
+		size: e.size,
+		mime: mimeFor(e.name)
+	}));
+	const opened = () => {
+		if (!zip) throw new Error('Arkivet är stängt');
+		return zip;
+	};
 
-/**
- * Cleanup URLs by revoking them
- */
-export function cleanupUrls(urls: string[]): void {
-	urls.forEach((url) => URL.revokeObjectURL(url));
+	return {
+		format: 'zip',
+		pages,
+		async readPage(index) {
+			const z = opened();
+			const entry = sorted[index];
+			if (!entry) throw new RangeError(`Sidan finns inte: ${index}`);
+			return z.blob(entry, pages[index].mime);
+		},
+		async readText(name) {
+			const z = opened();
+			const want = name.toLowerCase();
+			const entry = z.entries.find((e) => !e.isDir && basename(e.name).toLowerCase() === want);
+			// TextDecoder strips a leading UTF-8 BOM.
+			return entry ? new TextDecoder().decode(await z.read(entry)) : undefined;
+		},
+		close() {
+			zip = undefined;
+		}
+	};
 }

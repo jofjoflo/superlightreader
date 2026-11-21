@@ -1,0 +1,91 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 4335,
+    "title": "Batman",
+    "index": 3,
+    "pageprops": {
+     "wikibase_item": "Q2695156"
+    },
+    "terms": {
+     "description": [
+      "fictional character in DC Comics"
+     ]
+    },
+    "extract": "Batman is a superhero who appears in American comic books published by DC Comics. Batman was created by writer Bill Finger and artist Bob Kane, and debuted in the 27th issue of the comic book Detective Comics on March 30, 1939. In the DC Universe, Batman is the alias of Bruce Wayne, a wealthy American playboy, philanthropist, and industrialist who resides in the fictional Gotham City. Originally a millionaire, the character is later depicted as a billionaire. As Batman, he vows never to kill any criminal. His origin story features him swearing vengeance against criminals after witnessing the murder of his parents, Thomas and Martha, as a chil"
+   },
+   {
+    "pageid": 4726,
+    "title": "Batman (1989 film)",
+    "index": 5,
+    "pageprops": {
+     "wikibase_item": "Q116852"
+    },
+    "terms": {
+     "description": [
+      "1989 film directed by Tim Burton"
+     ]
+    },
+    "extract": "Batman is a 1989 superhero film directed by Tim Burton and written by Sam Hamm and Warren Skaaren. Based on the DC Comics character, it is the first installment of Warner Bros.' initial Batman film series. The film stars Jack Nicholson, Michael Keaton, Kim Basinger, Robert Wuhl, Pat Hingle, Billy Dee Williams, Michael Gough, and Jack Palance. The film's score was composed by Danny Elfman, and songs were written by Prince. The film takes place early in the war on crime of the title character (Keaton) and depicts his conflict with his archenemy the Joker (Nicholson).\nAfter Burton was hired as director in 1986, Steve Englehart and Julie Hickson "
+   },
+   {
+    "pageid": 171478,
+    "title": "Batman: The Animated Series",
+    "index": 6,
+    "pageprops": {
+     "wikibase_item": "Q673517"
+    },
+    "terms": {
+     "description": [
+      "American animated television series"
+     ]
+    },
+    "extract": "Batman: The Animated Series (often shortened as Batman TAS or BTAS) is an American animated superhero television series based on the DC Comics superhero Batman. Developed by Bruce Timm and Eric Radomski, and produced by Warner Bros. Animation, it originally aired on Fox Kids from September 5, 1992, to September 15, 1995, with a total of 85 episodes. Mid-way through the series' run, it was re-titled The Adventures of Batman & Robin.\nBatman: The Animated Series has received widespread acclaim since its release and was hailed as a groundbreaking superhero show, receiving praise for its writing, art design, voice acting, orchestrated soundtrack, "
+   },
+   {
+    "pageid": 2619910,
+    "title": "Batman v Superman: Dawn of Justice",
+    "index": 4,
+    "pageprops": {
+     "wikibase_item": "Q14772351"
+    },
+    "terms": {
+     "description": [
+      "2016 film directed by Zack Snyder"
+     ]
+    },
+    "extract": "Batman v Superman: Dawn of Justice is a 2016 American superhero film based on the DC Comics characters Batman and Superman. Directed by Zack Snyder and written by Chris Terrio and David S. Goyer, it is a follow-up to Man of Steel (2013) and the second film in the DC Extended Universe (DCEU). The film stars Ben Affleck as Batman and Henry Cavill as Superman, alongside a cast including Amy Adams, Jesse Eisenberg, Diane Lane, Laurence Fishburne, Jeremy Irons, Holly Hunter, and Gal Gadot. Batman v Superman: Dawn of Justice is the first live-action film to feature Batman and Superman together, as well as the first live-action cinematic portrayal o"
+   },
+   {
+    "pageid": 3622838,
+    "title": "Batman (comic book)",
+    "index": 1,
+    "pageprops": {
+     "wikibase_item": "Q2633138"
+    },
+    "terms": {
+     "description": [
+      "American comic book series"
+     ]
+    },
+    "extract": "Batman is an ongoing superhero American comic book series published by DC Comics, featuring the character of the same name as its protagonist. The character, created by Bill Finger and Bob Kane, first appeared in Detective Comics #27 (cover dated May 1939). Batman proved to be so popular that a self-titled ongoing comic book series began publication with a cover date of spring 1940. It was first advertised in early April 1940, one month after the first appearance of his new sidekick, Robin the Boy Wonder.\nThough the Batman comic book was launched as a quarterly publication, it later became a bimonthly series through the late 1950s, after whic"
+   },
+   {
+    "pageid": 78165655,
+    "title": "Absolute Batman",
+    "index": 2,
+    "pageprops": {
+     "wikibase_item": "Q130858129"
+    },
+    "terms": {
+     "description": [
+      "comic book series by DC Comics"
+     ]
+    },
+    "extract": "Absolute Batman is an American monthly superhero comic book series published by DC Comics, featuring an alternate version of the character Batman. The series, written by Scott Snyder and illustrated by Nick Dragotta, began publication on October 9, 2024, as the first title in DC's Absolute Universe imprint. It launched alongside Absolute Wonder Woman and Absolute Superman as one of three founding titles in the line.\nAbsolute Batman #1 became the best-selling comic in the direct market for 2024, selling just under 400,000 copies across multiple printings. The series received an Eisner Award nomination for Best New Series and reached number fiv"
+   }
+  ]
+ }
+}
