@@ -4,6 +4,7 @@
 	import { library } from '$lib/library.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import { similarSeries } from '$lib/recommend';
+	import { profileHref } from '$lib/profile';
 	import type { Issue, Series } from '$lib/types';
 	import Cover from '$lib/components/Cover.svelte';
 	import EditSeriesSheet from '$lib/components/EditSeriesSheet.svelte';
@@ -37,12 +38,25 @@
 	// ───────── formatting helpers ─────────
 	/** Only http(s) links from online sources are rendered as links. */
 	const safeUrl = (u?: string) => (u && /^https?:\/\//i.test(u) ? u : undefined);
-	/** Return to the library with the current query parameters, replacing only the creator filter. */
-	function creatorHref(creator: string): string {
-		const params = new URLSearchParams(page.url.searchParams);
-		params.set('creator', creator);
-		return `/library?${params.toString()}`;
-	}
+	const creatorHref = (creator: string) => profileHref('creators', creator);
+	const characterHref = (character: string) => profileHref('characters', character);
+	type MetronBatchItem = { issueId: string; status: string; error?: string; candidates?: unknown[] };
+	type MetronBatchProgress = { done?: number; total?: number; currentIssueId?: string; matched?: number; ambiguous?: number; notFound?: number; skipped?: number; failed?: number; rateLimited?: number };
+	type MetronBatchJob = {
+		active?: boolean;
+		seriesId?: string;
+		done?: number;
+		total?: number;
+		progress?: MetronBatchProgress;
+		items?: MetronBatchItem[];
+		result?: { items?: MetronBatchItem[]; progress?: MetronBatchProgress };
+	};
+	type MetronBatchApi = {
+		fetchMetronBatch?: (seriesId: string) => Promise<unknown>;
+		cancelMetronBatch?: () => void;
+		metronBatch?: MetronBatchJob;
+	};
+	const batchApi = library as typeof library & MetronBatchApi;
 
 	function yearText(s: Series): string {
 		const a = s.startYear;
@@ -105,6 +119,18 @@
 	let moreBtn = $state<HTMLButtonElement>();
 	let menuEl = $state<HTMLDivElement>();
 	let metronIssue = $state<Issue>();
+	let batchFetching = $state(false);
+	let batchResult = $state<{ items?: MetronBatchItem[] }>();
+	const batchJob = $derived(batchApi.metronBatch);
+	const batchForSeries = $derived.by(() => {
+		const job = batchJob;
+		const id = series?.id;
+		return job && (!job.seriesId || !id || job.seriesId === id) ? job : undefined;
+	});
+	const batchProgress = $derived(batchForSeries?.progress ?? batchForSeries);
+	const batchItems = $derived(batchResult?.items ?? batchForSeries?.result?.items ?? batchForSeries?.items ?? []);
+	const batchReviewItems = $derived(batchItems.filter((item) => item.status === 'ambiguous' || item.status === 'failed' || item.status === 'not-found'));
+	const batchVisible = $derived(!!batchForSeries && (!!batchForSeries.active || batchItems.length > 0));
 
 	// description: clamped to 4 lines, "Läs mer" only when the text really overflows
 	let expanded = $state<string | null>(null); // id of the series whose description is open
@@ -206,6 +232,32 @@
 		metronIssue = i;
 	}
 
+	async function fetchBatch() {
+		const s = series;
+		if (!s || batchFetching || batchForSeries?.active || !batchApi.fetchMetronBatch) return;
+		batchFetching = true;
+		batchResult = undefined;
+		try {
+			batchResult = (await batchApi.fetchMetronBatch(s.id)) as { items?: MetronBatchItem[] };
+			const reviewCount = batchResult.items?.filter((item) => item.status === 'ambiguous' || item.status === 'failed' || item.status === 'not-found').length ?? 0;
+			toast.show(reviewCount ? `${reviewCount} nummer behöver granskas.` : 'Metron-data hämtad för serien.', { kind: reviewCount ? 'error' : 'ok' });
+		} catch (e) {
+			toast.show(e instanceof Error ? e.message : 'Det gick inte att hämta Metron-data.', { kind: 'error' });
+		} finally {
+			batchFetching = false;
+		}
+	}
+
+	function cancelBatch() {
+		batchApi.cancelMetronBatch?.();
+	}
+
+	function batchStatus(item: MetronBatchItem): string {
+		if (item.status === 'ambiguous') return item.candidates?.length ? `Tvetydig (${item.candidates.length} träffar)` : 'Tvetydig';
+		if (item.status === 'not-found') return 'Ingen träff';
+		return item.error ? `Misslyckad · ${item.error}` : 'Misslyckad';
+	}
+
 	async function remove() {
 		const s = series;
 		if (!s || removing) return;
@@ -226,7 +278,7 @@
 <svelte:head><title>{series ? `${series.name} – SuperLight Reader` : 'Serie – SuperLight Reader'}</title></svelte:head>
 <svelte:window onkeydown={onKey} />
 
-{#snippet rowBody(issue: Issue, st: IssueStatus)}
+{#snippet rowBody(issue: Issue, st: IssueStatus, links = true)}
 	<span class="thumb"><Cover issueId={issue.id} alt="" /></span>
 	<span class="rt">
 		<span class="rname clamp-1">{issueName(issue)}</span>
@@ -239,9 +291,9 @@
 				<span class="warn" title="Filen är inte länkad"><Icon name="cloud-off" size={14} />Ej länkad – välj mappen igen</span>
 			{/if}
 		</span>
-		{#if issue.characters?.length}<span class="issue-characters"><b>Karaktärer</b> {issue.characters.join(', ')}</span>{/if}
-		{#if issue.metron?.characters.length}<span class="issue-characters metron-data"><b>Metron-karaktärer</b> {issue.metron.characters.join(', ')}</span>{/if}
-		{#if issue.metron?.creators.length}<span class="issue-characters metron-data"><b>Metron-skapare</b> {issue.metron.creators.join(', ')}</span>{/if}
+		{#if issue.characters?.length}<span class="issue-characters"><b>Karaktärer</b> {#each issue.characters as character, i}{#if links}<a href={characterHref(character)}>{character}</a>{:else}{character}{/if}{#if i < issue.characters.length - 1}, {/if}{/each}</span>{/if}
+		{#if issue.metron?.characters.length}<span class="issue-characters metron-data"><b>Metron-karaktärer</b> {#each issue.metron.characters as character, i}{#if links}<a href={characterHref(character)}>{character}</a>{:else}{character}{/if}{#if i < issue.metron.characters.length - 1}, {/if}{/each}</span>{/if}
+		{#if issue.metron?.creators.length}<span class="issue-characters metron-data"><b>Metron-skapare</b> {#each issue.metron.creators as creator, i}{#if links}<a href={creatorHref(creator)}>{creator}</a>{:else}{creator}{/if}{#if i < issue.metron.creators.length - 1}, {/if}{/each}</span>{/if}
 		{#if issue.metron}<span class="metron-match"><Icon name="check" size={13} /> Metron-match · id {issue.metron.id}{#if safeUrl(issue.metron.sourceUrl)} · <a href={safeUrl(issue.metron.sourceUrl)} target="_blank" rel="noopener noreferrer">Källa</a>{/if}</span>{/if}
 		{#if !st.done && st.value > 0}<ProgressBar value={st.value} height={3} />{/if}
 	</span>
@@ -431,6 +483,9 @@
 			<div class="issues-head">
 				<h2 class="h2" id="issues-h">Nummer<span class="count">{series.issueCount}</span></h2>
 				<div class="tools">
+					<button type="button" class="btn small" disabled={batchFetching || !!batchForSeries?.active || !batchApi.fetchMetronBatch} onclick={fetchBatch} title={!batchApi.fetchMetronBatch ? 'Batchhämtning laddas snart' : 'Hämta Metron-data för alla nummer'}>
+						<Icon name="refresh" size={17} />{#if batchForSeries?.active}{batchProgress?.done ?? 0} / {batchProgress?.total ?? 0}{:else if batchFetching}Hämtar…{:else}Hämta alla Metron{/if}
+					</button>
 					<button
 						type="button"
 						class="btn small"
@@ -449,6 +504,38 @@
 					</div>
 				</div>
 			</div>
+			{#if batchVisible}
+				{@const batchDone = batchProgress?.done ?? 0}
+				{@const batchTotal = batchProgress?.total ?? 0}
+				{@const current = batchProgress?.currentIssueId ? library.getIssue(batchProgress.currentIssueId) : undefined}
+				<div class="batch-status" role="status" aria-live="polite">
+					<div class="batch-status-head">
+						<strong>{batchForSeries?.active ? `Hämtar Metron ${batchDone} / ${batchTotal}` : 'Senaste Metron-hämtning'}</strong>
+						{#if batchForSeries?.active}<button type="button" class="btn btn-ghost small" onclick={cancelBatch}>Avbryt</button>{/if}
+					</div>
+					{#if batchTotal}<ProgressBar value={batchDone / batchTotal} height={5} />{/if}
+					{#if current}<p class="batch-current">{current.fileName}</p>{/if}
+					<div class="batch-stats">
+						<span class="ok">{batchProgress?.matched ?? 0} matchade</span>
+						<span>{batchProgress?.skipped ?? 0} redan matchade</span>
+						<span>{batchProgress?.ambiguous ?? 0} tvetydiga</span>
+						<span>{batchProgress?.notFound ?? 0} utan träff</span>
+						<span class="bad">{batchProgress?.failed ?? 0} misslyckade</span>
+						{#if batchProgress?.rateLimited}<span>{batchProgress.rateLimited} väntade på Metron</span>{/if}
+					</div>
+					{#if batchReviewItems.length}
+						<details class="batch-review">
+							<summary>Visa {batchReviewItems.length} nummer att granska</summary>
+							<ul>
+								{#each batchReviewItems as item (item.issueId)}
+									{@const reviewIssue = library.getIssue(item.issueId)}
+									{#if reviewIssue}<li><span>{issueName(reviewIssue)}</span><span class:item-bad={item.status === 'failed'}>{batchStatus(item)}</span></li>{/if}
+								{/each}
+							</ul>
+						</details>
+					{/if}
+				</div>
+			{/if}
 
 			{#if view === 'grid'}
 				<div class="grid-cards issues">
@@ -456,9 +543,9 @@
 						{@const st = status(issue)}
 						<div class="gi" class:off={!!issue.unsupported}>
 							<div class="gcard" inert={!!issue.unsupported}><IssueCard {issue} {series} /></div>
-							{#if issue.characters?.length}<p class="issue-characters"><b>Karaktärer</b> {issue.characters.join(', ')}</p>{/if}
-							{#if issue.metron?.characters.length}<p class="issue-characters metron-data"><b>Metron-karaktärer</b> {issue.metron.characters.join(', ')}</p>{/if}
-							{#if issue.metron?.creators.length}<p class="issue-characters metron-data"><b>Metron-skapare</b> {issue.metron.creators.join(', ')}</p>{/if}
+							{#if issue.characters?.length}<p class="issue-characters"><b>Karaktärer</b> {#each issue.characters as character, i}<a href={characterHref(character)}>{character}</a>{#if i < issue.characters.length - 1}, {/if}{/each}</p>{/if}
+							{#if issue.metron?.characters.length}<p class="issue-characters metron-data"><b>Metron-karaktärer</b> {#each issue.metron.characters as character, i}<a href={characterHref(character)}>{character}</a>{#if i < issue.metron.characters.length - 1}, {/if}{/each}</p>{/if}
+							{#if issue.metron?.creators.length}<p class="issue-characters metron-data"><b>Metron-skapare</b> {#each issue.metron.creators as creator, i}<a href={creatorHref(creator)}>{creator}</a>{#if i < issue.metron.creators.length - 1}, {/if}{/each}</p>{/if}
 							{#if issue.metron}<p class="metron-match"><Icon name="check" size={13} /> Metron-match · id {issue.metron.id}{#if safeUrl(issue.metron.sourceUrl)} · <a href={safeUrl(issue.metron.sourceUrl)} target="_blank" rel="noopener noreferrer">Källa</a>{/if}</p>{/if}
 							<button
 								type="button"
@@ -484,7 +571,7 @@
 						{@const st = status(issue)}
 						<li class="row" class:off={!!issue.unsupported}>
 							{#if issue.unsupported}
-								<div class="rowmain">{@render rowBody(issue, st)}</div>
+								<div class="rowmain">{@render rowBody(issue, st, false)}</div>
 							{:else}
 								<a class="rowmain" href={`/read/${encodeURIComponent(issue.id)}`}>{@render rowBody(issue, st)}</a>
 							{/if}
@@ -949,6 +1036,17 @@
 		filter: grayscale(0.7);
 	}
 	.metron-action { margin-top: 6px; min-height: 40px; font-size: 0.8rem; }
+	.batch-status { display:grid; gap:10px; margin:0 0 20px; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-s); background:color-mix(in srgb,var(--surface-2) 86%,transparent); }
+	.batch-status-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+	.batch-status-head .btn { min-height:36px; }
+	.batch-current { margin:0; overflow:hidden; color:var(--text-dim); font-size:.82rem; text-overflow:ellipsis; white-space:nowrap; }
+	.batch-stats { display:flex; flex-wrap:wrap; gap:6px 12px; color:var(--text-dim); font-size:.8rem; }
+	.batch-stats .ok { color:var(--ok); }
+	.batch-stats .bad, .item-bad { color:var(--danger); }
+	.batch-review { border-top:1px solid var(--border); padding-top:8px; color:var(--text-dim); font-size:.84rem; }
+	.batch-review summary { cursor:pointer; color:var(--text); font-weight:650; }
+	.batch-review ul { display:grid; gap:5px; margin:8px 0 0; padding:0; list-style:none; }
+	.batch-review li { display:flex; justify-content:space-between; gap:12px; }
 	.issue-characters {
 		margin: 8px 0 0;
 		color: var(--text-dim);
@@ -958,6 +1056,15 @@
 	.issue-characters b {
 		color: var(--text-faint);
 		font-weight: 700;
+	}
+	.issue-characters a {
+		color: var(--text);
+		text-decoration: underline;
+		text-decoration-color: var(--border-strong);
+		text-underline-offset: 2px;
+	}
+	.issue-characters a:hover {
+		color: var(--accent-2);
 	}
 	.why {
 		display: flex;

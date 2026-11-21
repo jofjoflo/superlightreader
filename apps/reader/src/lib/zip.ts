@@ -33,6 +33,8 @@ const EOCD64_SIZE = 56;
 const LOC64_SIZE = 20;
 const MAX_COMMENT = 0xffff;
 const MAX32 = 0xffffffff;
+const isNativeRange = (value: unknown): boolean =>
+	!!value && typeof value === 'object' && (value as { __nativeRange?: unknown }).__nativeRange === true;
 
 const bad = (why: string) => new Error(`Skadad zip-fil (${why})`);
 const u16 = (d: DataView, o: number) => d.getUint16(o, true);
@@ -163,7 +165,10 @@ export async function openZip(blob: Blob): Promise<ZipFile> {
 		},
 		async blob(e, mime) {
 			const data = await raw(e, mime);
-			return e.method === 0 ? data : new Blob([await inflate(data, e)], { type: mime });
+			// Native SAF files use a range-backed Blob-like value. Materialize only the requested
+			// page so browser image decoders receive a real Blob; the archive itself stays ranged.
+			if (e.method === 0 && !isNativeRange(data)) return data;
+			return new Blob([await (e.method === 0 ? data.arrayBuffer() : inflate(data, e))], { type: mime });
 		}
 	};
 }

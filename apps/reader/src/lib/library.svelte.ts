@@ -33,6 +33,8 @@ import { createBackup, downloadBackup, parseBackup, readBackupFile, restoreBacku
 import type { BackupImportResult, LibraryBackup } from './backup.ts';
 import { fetchSeriesMeta, candidateToMeta } from './metadata/index.ts';
 import { applyMetronIssue, fetchMetronIssue, searchMetronIssues } from './metadata/metron.ts';
+import { runMetronBatch } from './metadata/metron-batch.ts';
+import type { MetronBatchProgress, MetronBatchResult } from './metadata/metron-batch.ts';
 import { runPool, sleep } from './util.ts';
 import { convertToAvifCbz } from './convert.ts';
 import { UNKNOWN_PUBLISHER } from './types.ts';
@@ -69,6 +71,14 @@ export interface MetaJob {
 	done: number;
 	total: number;
 	label: string;
+}
+
+export interface MetronBatchJob extends MetronBatchProgress {
+	active: boolean;
+	seriesId?: string;
+	label: string;
+	cancelled: boolean;
+	errors: { issueId: string; error: string }[];
 }
 
 export interface ConvertFailure {
@@ -118,6 +128,11 @@ class Library {
 	settings = $state<Settings>(structuredClone(defaultSettings));
 	scan = $state<ScanState>({ active: false, phase: 'idle', done: 0, total: 0, label: '', added: 0, skipped: 0, failed: [] });
 	metaJob = $state<MetaJob>({ active: false, done: 0, total: 0, label: '' });
+	metronBatch = $state<MetronBatchJob>({
+		phase: 'completed', active: false, done: 0, total: 0, currentIssueId: undefined,
+		matched: 0, ambiguous: 0, notFound: 0, skipped: 0, failed: 0, rateLimited: 0,
+		seriesId: undefined, label: '', cancelled: false, errors: []
+	});
 	convert = $state<ConvertState>({ active: false, done: 0, total: 0, current: '', pageDone: 0, pageTotal: 0, completed: 0, failed: [], downloads: [], cancelled: false });
 	storage = $state({ usage: 0, quota: 0, opfs: false, persisted: false });
 
@@ -135,6 +150,7 @@ class Library {
 	private files = new Map<string, File>();
 	private chain: Promise<unknown> = Promise.resolve();
 	private metaAbort?: AbortController;
+	private metronBatchAbort?: AbortController;
 	private convertAbort?: AbortController;
 	private conversionUrls = new Set<string>();
 	private pending = new Map<string, Progress>();
@@ -209,6 +225,54 @@ class Library {
 		return next.metron;
 	}
 	applyMetronIssue = (issueId: string, data: MetronIssue): Promise<MetronIssue | undefined> => this.applyMetronMatch(issueId, data);
+
+	/** Fetch and safely persist automatic Metron matches for every issue in one series. */
+	async fetchMetronBatch(seriesId: string, opts: { signal?: AbortSignal } = {}): Promise<MetronBatchResult> {
+		if (this.metronBatch.active) throw new Error('En Metron-batch körs redan.');
+		const series = this.seriesById.get(seriesId);
+		if (!series) throw new Error('Serien finns inte längre.');
+		const controller = (this.metronBatchAbort = new AbortController());
+		const signal = opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal;
+		this.metronBatch = {
+			phase: 'running', active: true, done: 0, total: series.issues.length, currentIssueId: undefined,
+			matched: 0, ambiguous: 0, notFound: 0, skipped: 0, failed: 0, rateLimited: 0,
+			seriesId, label: series.name, cancelled: false, errors: []
+		};
+		try {
+			const result = await runMetronBatch(series.issues, {
+				signal,
+				getCurrentIssue: (id) => this.issueById.get(id),
+				onMatch: async (snapshot, data) => {
+					// The batch receives a snapshot; re-read immediately before writing so a manual choice wins.
+					const current = this.issueById.get(snapshot.id);
+					if (!current || current.metron) return;
+					await this.applyMetronMatch(current.id, data);
+				},
+				onProgress: (progress: MetronBatchProgress) => {
+					this.metronBatch = { ...this.metronBatch, ...progress, active: progress.phase === 'running', seriesId, label: series.name };
+				}
+			});
+			const errors = result.items.flatMap((item) => item.status === 'failed' && item.error ? [{ issueId: item.issueId, error: item.error }] : []);
+			this.metronBatch = {
+				...this.metronBatch, ...result.progress, active: false, seriesId, label: series.name,
+				cancelled: result.status === 'aborted', errors
+			};
+			return result;
+		} catch (error) {
+			this.metronBatch = {
+				...this.metronBatch, phase: 'aborted', active: false, cancelled: signal.aborted,
+				errors: [{ issueId: '', error: error instanceof Error ? error.message : String(error) }]
+			};
+			throw error;
+		} finally {
+			if (this.metronBatchAbort === controller) this.metronBatchAbort = undefined;
+		}
+	}
+
+	cancelMetronBatch() {
+		this.metronBatchAbort?.abort();
+	}
+	abortMetronBatch = this.cancelMetronBatch;
 
 	/** The readable File for an issue, or undefined if the user must re-pick (see `pick`). */
 	async getFile(id: string): Promise<File | undefined> {
@@ -537,6 +601,7 @@ class Library {
 	/** Wipe the whole library (issues, covers, progress, metadata, OPFS copies). Settings are kept. */
 	async clearAll() {
 		this.cancelMeta();
+		this.cancelMetronBatch();
 		this.cancelConvert();
 		for (const url of this.conversionUrls) URL.revokeObjectURL(url);
 		this.conversionUrls.clear();

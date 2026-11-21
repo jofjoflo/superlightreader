@@ -29,7 +29,7 @@ async function comics(create = false): Promise<FileSystemDirectoryHandle | undef
 	return orMissing(() => root.getDirectoryHandle(DIR, { create }));
 }
 
-/** Stream-copy `file` into OPFS under `id` (use createWritable().write(file); no full-file buffering). Returns the OPFS-backed File. */
+/** Stream-copy `file` into OPFS under `id`; native SAF handles provide ranged arrayBuffer() reads. */
 export async function opfsPut(id: string, file: File): Promise<File> {
 	const dir = await comics(true);
 	if (!dir) throw new Error('OPFS is not available');
@@ -39,7 +39,19 @@ export async function opfsPut(id: string, file: File): Promise<File> {
 	try {
 		const out = await handle.createWritable();
 		try {
-			await out.write(file); // the browser streams the Blob to disk
+			if (file instanceof Blob) {
+				await out.write(file); // the browser streams the Blob to disk
+			} else {
+				// Android SAF's File-like handle is deliberately not a Blob: copy bounded ranges
+				// instead of asking the bridge for the complete archive.
+				const ranged = file as unknown as { size: number; slice(start: number, end: number): { arrayBuffer(): Promise<ArrayBuffer> } };
+				const chunk = 256 * 1024;
+				for (let offset = 0; offset < ranged.size; offset += chunk) {
+					const bytes = await ranged.slice(offset, Math.min(offset + chunk, ranged.size)).arrayBuffer();
+					if (!bytes.byteLength) throw new Error('Filen tog slut oväntat.');
+					await out.write(bytes);
+				}
+			}
 			await out.close();
 		} catch (e) {
 			await out.abort().catch(() => {});

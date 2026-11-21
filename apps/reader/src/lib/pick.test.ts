@@ -1,6 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { inputsFromDrop, inputsFromFiles } from './pick.ts';
+import { NativePickedFileHandle } from './pick-native.ts';
 
 const fakeFile = (name: string, webkitRelativePath = '') => ({ name, size: 1, webkitRelativePath }) as unknown as File;
 
@@ -27,6 +28,38 @@ test('inputsFromFiles uses webkitRelativePath when set, else the file name', () 
 
 test('inputsFromFiles on an empty list', () => {
 	assert.deepEqual(inputsFromFiles([]), []);
+});
+
+test('native picked file reads only requested ranges and clamps slices', async () => {
+	const source = new TextEncoder().encode('0123456789');
+	const reads: [number, number][] = [];
+	const file = new NativePickedFileHandle(
+		{ name: 'a.cbz', path: 'Serier/a.cbz', size: source.length, lastModified: 0, uri: 'content://a' },
+		async (offset, length) => {
+			reads.push([offset, length]);
+			return source.slice(offset, offset + length);
+		}
+	);
+	const bytes = await file.slice(-4, 999).arrayBuffer();
+	assert.equal(new TextDecoder().decode(bytes), '6789');
+	assert.deepEqual(reads, [[6, 4]]);
+});
+
+test('native picked file chunks large slices instead of requesting an oversized bridge message', async () => {
+	const source = new Uint8Array(2 * 1024 * 1024);
+	for (let i = 0; i < source.length; i++) source[i] = i & 255;
+	const requests: number[] = [];
+	const file = new NativePickedFileHandle(
+		{ name: 'large.cbz', path: 'large.cbz', size: source.length, lastModified: 0, uri: 'content://large' },
+		async (offset, length) => {
+			requests.push(length);
+			return source.slice(offset, offset + length);
+		}
+	);
+	const result = new Uint8Array(await file.slice(0, source.length).arrayBuffer());
+	assert.deepEqual(result, source);
+	assert.equal(requests.length, 8);
+	assert.ok(requests.every((length) => length <= 256 * 1024));
 });
 
 // ── drag & drop: fake FileSystemEntry trees ──

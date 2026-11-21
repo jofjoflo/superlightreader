@@ -484,6 +484,35 @@ export function buildHomeRows(series: Series[], now = Date.now()): RecRow[] {
 		}
 	}
 
+	// Local creator shelf: only creators on issues the user has actually started reading
+	// can explain this row. Never infer popularity or ratings from outside the library.
+	const read = idx.list.filter((s) => s.completedCount > 0 || s.progress > 0).sort(recent);
+	const creatorLeads = new Map<string, { label: string; weight: number; last: number }>();
+	for (const s of read) {
+		const weight = Math.max(1, s.completedCount + s.progress);
+		for (const creator of s.creators) {
+			const key = squash(creator);
+			if (!key) continue;
+			const lead = creatorLeads.get(key);
+			if (lead) {
+				lead.weight += weight;
+				lead.last = Math.max(lead.last, s.lastReadAt ?? 0);
+			} else creatorLeads.set(key, { label: creator.trim(), weight, last: s.lastReadAt ?? 0 });
+		}
+	}
+	const readIds = new Set(read.map((s) => s.id));
+	const creatorLead = [...creatorLeads].sort(([, a], [, b]) => b.weight - a.weight || b.last - a.last || naturalCompare(a.label, b.label))[0];
+	if (creatorLead) {
+		const [key, lead] = creatorLead;
+		const fromCreator = open
+			.filter((s) => !readIds.has(s.id) && s.creators.some((creator) => squash(creator) === key))
+			.sort(shelf);
+		seriesRow(`creator-${key}`, `Mer från ${lead.label}`, take(fromCreator, undefined, true), {
+			href: `/library?creator=${encodeURIComponent(lead.label)}`,
+			counted: false
+		});
+	}
+
 	seriesRow('favorites', 'Dina favoriter', take(idx.list.filter((s) => s.favorite).sort(recent), undefined, true), {
 		href: '/library?status=favorites',
 		counted: false

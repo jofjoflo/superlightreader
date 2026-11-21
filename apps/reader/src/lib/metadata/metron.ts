@@ -50,7 +50,19 @@ export interface MetronMatch {
 }
 
 /** Array-compatible search result. `hasMore` is non-enumerable to keep callers' list behavior unchanged. */
-export type MetronSearchResults = MetronIssueCandidate[] & { hasMore?: boolean };
+export type MetronSearchResults = MetronIssueCandidate[] & { hasMore?: boolean; total?: number };
+
+export interface MetronSearchAllOptions {
+	/** Safety valve for a broken pagination response. Normal Metron responses finish well below this. */
+	maxPages?: number;
+	/** Abortable spacing between pages and before a detail request in a batch. */
+	minIntervalMs?: number;
+	onPage?: (page: number, rows: MetronSearchResults) => void | Promise<void>;
+}
+
+export interface MetronMatchOptions {
+	minIntervalMs?: number;
+}
 
 type JsonObject = Record<string, unknown>;
 
@@ -196,6 +208,25 @@ const yearFromDate = (value: unknown): number | undefined => {
 	return year >= 1800 && year <= 2100 ? year : undefined;
 };
 
+function waitMetron(ms: number, signal?: AbortSignal): Promise<void> {
+	if (ms <= 0) return Promise.resolve();
+	return new Promise((resolve, reject) => {
+		let timer: ReturnType<typeof setTimeout>;
+		const abort = () => {
+			clearTimeout(timer);
+			signal?.removeEventListener('abort', abort);
+			reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+		};
+		const finish = () => {
+			signal?.removeEventListener('abort', abort);
+			resolve();
+		};
+		timer = setTimeout(finish, ms);
+		if (signal?.aborted) abort();
+		else signal?.addEventListener('abort', abort, { once: true });
+	});
+}
+
 function seriesOf(raw: JsonObject): JsonObject | undefined {
 	return object(raw.series);
 }
@@ -272,12 +303,12 @@ function candidateOf(rawValue: unknown, query: NormalizedMetronQuery): MetronIss
 	return candidate;
 }
 
-function responseResults(response: unknown): { rows: unknown[]; hasMore: boolean } {
+function responseResults(response: unknown): { rows: unknown[]; hasMore: boolean; total?: number } {
 	if (Array.isArray(response)) return { rows: response, hasMore: false };
 	const body = object(response);
 	const rows = list(body?.results);
 	const count = numberValue(body?.count);
-	return { rows, hasMore: (count !== undefined && count > rows.length) || !!text(body?.next) };
+	return { rows, total: count, hasMore: (count !== undefined && count > rows.length) || !!text(body?.next) };
 }
 
 function queryOf(input: MetronQuery | Issue): NormalizedMetronQuery {
@@ -289,12 +320,18 @@ function queryOf(input: MetronQuery | Issue): NormalizedMetronQuery {
 export async function searchMetronIssues(input: MetronQuery | Issue, signal?: AbortSignal, page = 1): Promise<MetronSearchResults> {
 	const query = queryOf(input);
 	if (!query.seriesName.trim() || signal?.aborted) return [];
-	const pageNumber = Math.max(1, Math.min(100, Math.trunc(page) || 1));
+	const pageNumber = Math.max(1, Math.min(10_000, Math.trunc(page) || 1));
 	const number = issueNumberKey(query.number);
 	let response: unknown;
 	if (isMetronNative()) {
 		try {
-			const nativeResponse = await MetronNative.search({ q: query.seriesName.trim(), number, page: pageNumber });
+			const nativeResponse = await MetronNative.search({
+				q: query.seriesName.trim(),
+				number,
+				volume: query.volume,
+				year: query.year,
+				page: pageNumber
+			});
 			response = parseNativeMetronResponse(nativeResponse);
 		} catch (error) {
 			throw nativeFailure(error);
@@ -311,6 +348,7 @@ export async function searchMetronIssues(input: MetronQuery | Issue, signal?: Ab
 		.sort((a, b) => b.confidence - a.confidence || a.id - b.id)
 		.slice(0, MAX_RESULTS);
 	if (parsed.hasMore) Object.defineProperty(out, 'hasMore', { value: true, enumerable: false });
+	if (parsed.total !== undefined) Object.defineProperty(out, 'total', { value: parsed.total, enumerable: false });
 	return out as MetronSearchResults;
 }
 
@@ -369,13 +407,68 @@ export async function fetchMetronIssue(id: number | string, signal?: AbortSignal
 	return detailsOf(response, candidate);
 }
 
+/**
+ * Read every result page. Search results stay candidates: this function never selects or fetches details.
+ * Duplicate ids are removed because some Metron proxy versions repeat the final page while `next` is set.
+ */
+export async function searchAllMetronIssues(
+	input: MetronQuery | Issue,
+	signal?: AbortSignal,
+	options: MetronSearchAllOptions = {}
+): Promise<MetronSearchResults> {
+	const maxPages = Math.max(1, Math.min(10_000, Math.trunc(options.maxPages ?? 1_000)));
+	const all: MetronIssueCandidate[] = [];
+	const seen = new Set<number>();
+	let lastRequest = 0;
+	for (let page = 1; page <= maxPages; page++) {
+		if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+		await waitMetron(Math.max(0, (options.minIntervalMs ?? 0) - (Date.now() - lastRequest)), signal);
+		lastRequest = Date.now();
+		const rows = await searchMetronIssues(input, signal, page);
+		let added = 0;
+		for (const row of rows) {
+			if (!seen.has(row.id)) {
+				seen.add(row.id);
+				all.push(row);
+				added++;
+			}
+		}
+		await options.onPage?.(page, rows);
+		if (!rows.hasMore || (rows.total !== undefined && all.length >= rows.total) || (page > 1 && added === 0)) break;
+	}
+	if (options.minIntervalMs) await waitMetron(options.minIntervalMs, signal);
+	all.sort((a, b) => b.confidence - a.confidence || a.id - b.id);
+	return all as MetronSearchResults;
+}
+
+/** Alias kept explicit for callers that prefer the word "issues" in the API name. */
+export const searchMetronIssuesAll = searchAllMetronIssues;
+
+/** Candidate must agree on every identifying value supplied by the local issue. */
+export function isSafeMetronCandidate(input: MetronQuery | Issue, candidate: MetronIssueCandidate): boolean {
+	const query = queryOf(input);
+	if (titleMatch(query.seriesName, candidate.seriesName ?? '') !== 'exact') return false;
+	const qNumber = issueNumberKey(query.number);
+	const cNumber = issueNumberKey(candidate.number);
+	// Without an issue number, a series search is never safe for automatic selection.
+	if (qNumber === undefined || cNumber === undefined || qNumber !== cNumber) return false;
+	if (query.volume !== undefined && candidate.volume !== query.volume) return false;
+	if (query.year !== undefined && candidate.year !== query.year) return false;
+	return true;
+}
+
 /** Search, expose ambiguity, and detail-fetch only a confident automatic match. */
-export async function matchMetronIssue(input: MetronQuery | Issue, signal?: AbortSignal): Promise<MetronMatch> {
-	const candidates = await searchMetronIssues(input, signal);
-	if (!candidates.length) return { status: 'not-found', candidates: [] };
-	const [best, second] = candidates;
+export async function matchMetronIssue(input: MetronQuery | Issue, signal?: AbortSignal, options: MetronMatchOptions = {}): Promise<MetronMatch> {
+	const candidates = await searchMetronIssuesAll(input, signal, { minIntervalMs: options.minIntervalMs });
+	const safe = candidates.filter((candidate) => isSafeMetronCandidate(input, candidate));
+	if (!safe.length) {
+		return candidates.length
+			? { status: 'ambiguous', candidates: candidates.map((c) => ({ ...c, uncertain: true })) }
+			: { status: 'not-found', candidates: [] };
+	}
+	const [best, second] = safe;
 	const ambiguous = best.confidence < AUTO_SCORE || (second && best.confidence - second.confidence < AUTO_MARGIN);
-	if (ambiguous) return { status: 'ambiguous', candidates: candidates.map((c, i) => i < 2 ? { ...c, uncertain: true } : c) };
+	if (ambiguous) return { status: 'ambiguous', candidates: safe.map((c) => ({ ...c, uncertain: true })) };
 	return { status: 'matched', candidates, selected: await fetchMetronIssue(best.id, signal, best) };
 }
 
