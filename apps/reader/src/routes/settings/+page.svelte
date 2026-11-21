@@ -4,6 +4,7 @@
 	import { toast } from '$lib/toast.svelte';
 	import { ui } from '$lib/ui.svelte';
 	import { UNKNOWN_PUBLISHER } from '$lib/types';
+	import { saveObjectUrl } from '$lib/export';
 	import type { ReaderSettings } from '$lib/types';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { IconName } from '$lib/components/Icon.svelte';
@@ -159,6 +160,13 @@
 			selectedConvert = [];
 		} catch {
 			toast.show('Konverteringen misslyckades. Originalen är oförändrade.', { kind: 'error' });
+		}
+	}
+	async function downloadConverted(output: (typeof conversion.downloads)[number]) {
+		try {
+			await saveObjectUrl(output.url, { fileName: output.fileName, mimeType: 'application/zip' });
+		} catch (e) {
+			toast.show(e instanceof Error ? e.message : 'CBZ-filen kunde inte sparas.', { kind: 'error' });
 		}
 	}
 	async function askPersist() {
@@ -338,7 +346,7 @@
 			<div class="convert-downloads" aria-label="Konverterade filer">
 				<strong>Färdiga filer</strong>
 				<p class="muted">Webbläsaren sparar till vald hämtningsmapp eller visar en fråga. Om inget händer, kontrollera webbläsarens nedladdningsbehörighet. Resultaten ligger kvar här tills nästa konvertering.</p>
-				{#each conversion.downloads as output (output.id)}<a class="btn" href={output.url} download={output.fileName} aria-label={`Hämta ${output.fileName}`}>Hämta {output.fileName}</a>{/each}
+					{#each conversion.downloads as output (output.id)}<button type="button" class="btn" onclick={() => downloadConverted(output)} aria-label={`Hämta ${output.fileName}`}>Hämta {output.fileName}</button>{/each}
 			</div>
 		{/if}
 		<div class="convert-submit"><button type="button" class="btn btn-primary" disabled={!selectedConvert.length || conversion.active} onclick={runConversion}><Icon name="download" size={18} />Konvertera valda</button></div>
@@ -701,7 +709,7 @@
 	.convert-result { margin:4px 18px 14px; padding:12px 14px; border-radius:var(--radius-s); background:var(--surface-2); color:var(--text-dim); font-size:.9rem; }
 	.convert-result ul { margin:8px 0 0; padding-left:1.2rem; color:var(--danger); }
 	.convert-downloads { display:grid; gap:8px; margin:4px 18px 14px; padding:12px 14px; border-radius:var(--radius-s); background:var(--surface-2); }
-	.convert-downloads a { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+	.convert-downloads button { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 	.convert-submit { display:flex; justify-content:flex-start; padding:0 18px 18px; }
 
 	.pill {

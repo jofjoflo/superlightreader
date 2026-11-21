@@ -12,6 +12,7 @@
 	import { library } from '$lib/library.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import { ui } from '$lib/ui.svelte';
+	import { saveObjectUrl } from '$lib/export';
 	import Sheet from './Sheet.svelte';
 	import Icon from './Icon.svelte';
 	let busy = $state(false);
@@ -35,6 +36,13 @@
 			else toast.show(`${result.completed} AVIF-CBZ-filer är klara att hämta`, { kind: 'ok' });
 		} catch { toast.show('Konverteringen misslyckades', { kind: 'error' }); }
 		finally { busy = false; }
+	}
+	async function downloadConverted(output: (typeof conversion.downloads)[number]) {
+		try {
+			await saveObjectUrl(output.url, { fileName: output.fileName, mimeType: 'application/zip' });
+		} catch (e) {
+			toast.show(e instanceof Error ? e.message : 'CBZ-filen kunde inte sparas.', { kind: 'error' });
+		}
 	}
 </script>
 
@@ -68,7 +76,7 @@
 				<div class="convert-downloads" aria-label="Konverterade filer">
 					<strong>Färdiga filer</strong>
 					<p class="muted hint">Webbläsaren sparar till vald hämtningsmapp eller visar en fråga. Om inget händer, kontrollera webbläsarens nedladdningsbehörighet. Resultaten ligger kvar här tills nästa konvertering.</p>
-					{#each conversion.downloads as output (output.id)}<a class="btn" href={output.url} download={output.fileName} aria-label={`Hämta ${output.fileName}`}>Hämta {output.fileName}</a>{/each}
+					{#each conversion.downloads as output (output.id)}<button type="button" class="btn" onclick={() => downloadConverted(output)} aria-label={`Hämta ${output.fileName}`}>Hämta {output.fileName}</button>{/each}
 				</div>
 			{/if}
 		</div>
@@ -78,5 +86,5 @@
 
 <style>
 	.add-options { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.add-options .btn { min-height:58px; }.persist { display:flex; gap:12px; align-items:flex-start; margin:24px 0 8px; padding:14px; border-radius:var(--radius); background:var(--surface); }.persist input { width:20px; height:20px; accent-color:var(--accent); }.persist span { display:grid; gap:2px; }.persist small { color:var(--text-dim); }.hint { font-size:.88rem; margin-top:10px; }.demo { display:inline-flex; align-items:center; gap:8px; min-height:44px; margin-top:14px; color:var(--accent-2); font-weight:650; }
-	.convert-box { display:grid; gap:10px; margin-top:18px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); }.convert-box p { margin:0; }.convert-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.convert-fields label { display:grid; gap:4px; font-size:.86rem; color:var(--text-dim); }.convert-fields input { width:100%; min-height:40px; padding:0 10px; border:1px solid var(--border-strong); border-radius:var(--radius-s); background:var(--bg-raised); color:var(--text); }.convert-fields small { font-size:.76rem; }.convert-progress { display:grid; gap:6px; font-size:.86rem; }.convert-progress span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.convert-progress small { color:var(--text-dim); }.convert-downloads { display:grid; gap:6px; }.convert-downloads a { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+	.convert-box { display:grid; gap:10px; margin-top:18px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); }.convert-box p { margin:0; }.convert-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.convert-fields label { display:grid; gap:4px; font-size:.86rem; color:var(--text-dim); }.convert-fields input { width:100%; min-height:40px; padding:0 10px; border:1px solid var(--border-strong); border-radius:var(--radius-s); background:var(--bg-raised); color:var(--text); }.convert-fields small { font-size:.76rem; }.convert-progress { display:grid; gap:6px; font-size:.86rem; }.convert-progress span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.convert-progress small { color:var(--text-dim); }.convert-downloads { display:grid; gap:6px; }.convert-downloads button { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>

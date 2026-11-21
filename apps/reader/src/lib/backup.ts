@@ -2,6 +2,7 @@ import { dbLoad, dbPutBackupRows } from './db.ts';
 import { parseReadingOrderJson, type ReadingOrder } from './reading-order.ts';
 import { loadSettings, saveSettingsStrict } from './settings.ts';
 import type { Issue, Progress, SeriesMeta, SeriesUser, Settings } from './types.ts';
+import { saveBlob } from './export.ts';
 
 export const BACKUP_FORMAT = 'superlight-reader-backup' as const;
 export const BACKUP_VERSION = 1 as const;
@@ -170,11 +171,13 @@ export async function createBackup(storage?: Storage): Promise<LibraryBackup> {
 	return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), issues: snapshot.issues.map((i) => ({ ...copy(i), persisted: false })), progress: copy(snapshot.progress), seriesMeta: copy(snapshot.seriesMeta), seriesUser: copy(snapshot.seriesUser), settings: copy(settings), readingOrders: copy(loadReadingOrders(storage)) };
 }
 
-export function downloadBackup(backup: LibraryBackup): boolean {
-	if (typeof document === 'undefined') return false;
-	const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
-	const a = document.createElement('a'); a.href = url; a.download = `superlightreader-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
-	setTimeout(() => URL.revokeObjectURL(url), 1000); return true;
+export async function downloadBackup(backup: LibraryBackup): Promise<boolean> {
+	const json = JSON.stringify(backup, null, 2);
+	await saveBlob(new Blob([json], { type: 'application/json' }), {
+		fileName: `superlightreader-backup-${new Date().toISOString().slice(0, 10)}.json`,
+		mimeType: 'application/json'
+	});
+	return true;
 }
 
 export async function readBackupFile(file: Blob): Promise<BackupParseResult> {

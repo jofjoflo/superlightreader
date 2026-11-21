@@ -7,6 +7,7 @@
  */
 import type { Issue, MetronAttribution, MetronIssue } from '../types.ts';
 import { fetchJson } from './net.ts';
+import { Capacitor } from '@capacitor/core';
 
 const PROXY = '/api/metron';
 const MAX_RESULTS = 100;
@@ -52,8 +53,31 @@ export type MetronSearchResults = MetronIssueCandidate[] & { hasMore?: boolean }
 
 type JsonObject = Record<string, unknown>;
 
+export class MetronUnavailableError extends Error {
+	constructor(message = 'Metron kräver en säker serveranslutning i Android-appen. Ange VITE_METRON_PROXY_URL eller använd webbversionen.') {
+		super(message);
+		this.name = 'MetronUnavailableError';
+	}
+}
+
+function configuredProxyOrigin(): string | undefined {
+	const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_METRON_PROXY_URL?.trim();
+	if (!env) return undefined;
+	try {
+		const url = new URL(env);
+		return url.protocol === 'https:' ? url.toString() : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 /** fetchJson paces by URL hostname; keep this absolute while remaining same-origin in browsers. */
 const proxyUrl = (params: URLSearchParams): string => {
+	if (Capacitor.isNativePlatform()) {
+		const origin = configuredProxyOrigin();
+		if (!origin) throw new MetronUnavailableError();
+		return `${new URL(PROXY, origin).toString()}?${params}`;
+	}
 	const origin = typeof location !== 'undefined' ? location.origin : 'http://localhost';
 	return `${new URL(PROXY, origin).toString()}?${params}`;
 };

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Capacitor } from '@capacitor/core';
 import { applyMetronIssue, fetchMetronIssue, matchMetronIssue, searchMetronIssues, searchMetronPage } from './metron.ts';
 import type { Issue } from '../types.ts';
 
@@ -16,6 +17,7 @@ function mock(body: unknown) {
 
 test.afterEach(() => {
 	globalThis.fetch = oldFetch;
+	Capacitor.isNativePlatform = () => false;
 });
 
 test('searchMetronIssues sends series and number, then filters mismatching volume/year conservatively', async () => {
@@ -33,6 +35,14 @@ test('searchMetronIssues sends series and number, then filters mismatching volum
 	assert.match(requested, /q=Saga/);
 	assert.match(requested, /number=1/);
 	assert.deepEqual(out.map((x) => x.id), [2]);
+});
+
+test('native APK without a configured HTTPS proxy fails with a clear Swedish explanation', async () => {
+	Capacitor.isNativePlatform = () => true;
+	let called = false;
+	globalThis.fetch = (async () => { called = true; throw new Error('should not fetch'); }) as unknown as typeof fetch;
+	await assert.rejects(searchMetronIssues({ name: 'Saga', number: 1 }), /säker serveranslutning.*Android-appen/i);
+	assert.equal(called, false);
 });
 
 test('leading article variation is exposed as an uncertain candidate, never auto-selected silently', async () => {

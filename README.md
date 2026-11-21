@@ -1,6 +1,6 @@
 # SuperLight Reader
 
-Seriebibliotek och läsare som körs helt i webbläsaren – byggt för en Android-surfplatta (installeras som app), fungerar även på dator. Peka ut mappen med dina CBZ/CBR-filer så får du en hylla med serier, förlag, genrer, filter, rekommendationer och metadata från nätet. Ingen server, inga konton.
+Seriebibliotek och läsare som körs helt i webbläsaren – byggt för en Android-surfplatta (installeras som app), fungerar även på dator. Peka ut mappen med dina CBZ/CBR-filer så får du en hylla med serier, förlag, genrer, filter, rekommendationer och metadata från nätet. Läsning och bibliotek fungerar lokalt. Metron kräver en separat serveranslutning och ett konto.
 
 ## Funktioner
 
@@ -45,13 +45,27 @@ Går även bra på Netlify, Cloudflare Pages eller annan statisk host: `apps/rea
 - Webbläsaren kan rensa lagring vid platsbrist: *Inställningar → Begär beständig lagring*. Behåll alltid originalfilerna.
 - Metadata hämtas från Wikipedia, AniList m.fl. (serienamn skickas dit). Stäng av i *Inställningar* om du inte vill det.
 
+### Android debug-APK (Capacitor)
+
+Capacitor 8-shellen ligger i `apps/reader/android`. Lokalt krävs JDK 21 samt Android SDK med API 36 (`platforms;android-36` och `build-tools;36.0.0`):
+
+```bash
+cd apps/reader
+pnpm install --frozen-lockfile
+pnpm run android:build
+```
+
+På GitHub Actions kör du **Android debug APK → Run workflow**. Push till branchen `codex/android-reader` kör samma jobb automatiskt. Ladda ned `superlight-reader-debug-*` under workflow-runens **Artifacts**.
+
+APK:n är en statisk/offline WebView-app. Metron-sökning är inte tillgänglig i APK:n eftersom `/api/metron` är en server-route och ingen Metron-nyckel paketeras. Import, filåtkomst och lokal lagring är ännu inte fysiskt testade på Android-enhet.
+
 ## Metron och flyttbar säkerhetskopia
 
 Lägg `metron_key` i `.env` i repots rot och starta om utvecklingsservern. På en seriesida kan du söka efter ett nummer hos Metron, granska träffen och spara karaktärer och skapare. Matchningen sparas lokalt tillsammans med biblioteket. Serienamn och nummer skickas till Metron vid sökning; nyckeln används bara av den lokala servern.
 
 Metron-proxyn är avstängd på Vercel och i produktionsläge tills appen har åtkomstkontroll. En publik proxy utan inloggning skulle låta andra använda din Metron-kvot. En statisk preview har ingen lokal API-server; använd `pnpm run dev` för Metron lokalt.
 
-Under **Inställningar → Säkerhetskopia** exporterar du bibliotek, metadata, lässtatus, läsordningar och inställningar som JSON. Importera filen på den andra enheten. Själva seriefilerna och omslagen ingår inte: välj samma filer igen för att länka dem. Befintliga uppgifter bevaras vid konflikter; inställningar importeras bara om du väljer det.
+Under **Inställningar → Backup** exporterar du bibliotek, metadata, lässtatus, läsordningar och inställningar som JSON. Importera filen på den andra enheten. Själva seriefilerna och omslagen ingår inte: välj samma filer igen för att länka dem. Befintliga uppgifter bevaras vid konflikter; inställningar importeras bara om du väljer det.
 
 ## Filnamn och mappar som känns igen
 
